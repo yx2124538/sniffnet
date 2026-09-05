@@ -116,10 +116,12 @@ fn analyze_net_header(network_header: Option<NetHeaders>) -> Option<NetInfo> {
             let src_ip = IpAddr::from(ipv4header.source);
             let dst_ip = IpAddr::from(ipv4header.destination);
             let bytes = usize::from(ipv4header.total_len);
+            let ether_type = EtherType::IPV4.0;
             Some(NetInfo {
                 src_ip,
                 dst_ip,
                 arp_type: None,
+                ether_type,
                 bytes,
             })
         }
@@ -127,10 +129,12 @@ fn analyze_net_header(network_header: Option<NetHeaders>) -> Option<NetInfo> {
             let src_ip = IpAddr::from(ipv6header.source);
             let dst_ip = IpAddr::from(ipv6header.destination);
             let bytes = usize::from(ipv6header.payload_length) + 40;
+            let ether_type = EtherType::IPV6.0;
             Some(NetInfo {
                 src_ip,
                 dst_ip,
                 arp_type: None,
+                ether_type,
                 bytes,
             })
         }
@@ -166,10 +170,12 @@ fn analyze_net_header(network_header: Option<NetHeaders>) -> Option<NetInfo> {
             };
             let bytes = arp_packet.packet_len();
             let arp_type = Some(ArpType::from_etherparse(arp_packet.operation));
+            let ether_type = EtherType::ARP.0;
             Some(NetInfo {
                 src_ip,
                 dst_ip,
                 arp_type,
+                ether_type,
                 bytes,
             })
         }

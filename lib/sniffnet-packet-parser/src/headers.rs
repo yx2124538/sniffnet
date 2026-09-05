@@ -25,6 +25,8 @@ pub struct NetInfo {
     pub dst_ip: IpAddr,
     /// ARP message type, if the packet is an ARP packet.
     pub arp_type: Option<ArpType>,
+    /// Ethernet type identifying the network layer protocol (IPv4, IPv6, or ARP).
+    pub ether_type: u16,
     pub(crate) bytes: usize,
 }
 

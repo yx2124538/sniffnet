@@ -268,6 +268,11 @@ fn apply_ie(ie_id: u16, raw: &[u8], record: &mut FlowRecord, priority: &mut Fiel
                 record.dst_ip = Some(v);
             }
         }
+        ie::ETHERNET_TYPE => {
+            if let Some(v) = read_unsigned(raw).and_then(|n| u16::try_from(n).ok()) {
+                record.ether_type = Some(v);
+            }
+        }
         ie::FLOW_DIRECTION => {
             // 0x00 is ingress, 0x01 is egress
             if let Some(dir) = match raw.first() {
@@ -852,6 +857,7 @@ mod tests {
             (ie::SOURCE_MAC_ADDRESS, 6),
             (ie::DESTINATION_MAC_ADDRESS, 6),
             (ie::DOT1Q_VLAN_ID, 2),
+            (ie::ETHERNET_TYPE, 2),
             (ie::OCTET_DELTA_COUNT, 8),
             (ie::PACKET_DELTA_COUNT, 8),
             (ie::OCTET_TOTAL_COUNT, 8),
@@ -869,6 +875,7 @@ mod tests {
             &MAC_A,
             &MAC_B,
             &42u16.to_be_bytes(),
+            &0x0800u16.to_be_bytes(),
             &C1500,
             &10u64.to_be_bytes(),
             &9000u64.to_be_bytes(),
@@ -890,6 +897,7 @@ mod tests {
                 src_port: Some(443),
                 dst_port: Some(51234),
                 protocol: Some(Protocol::Tcp),
+                ether_type: Some(0x0800),
                 bytes_delta: Some(1500),
                 packets_delta: Some(10),
                 bytes_total: Some(9000),

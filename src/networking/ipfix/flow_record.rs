@@ -5,6 +5,9 @@ use crate::networking::types::traffic_direction::TrafficDirection;
 use crate::utils::types::timestamp::Timestamp;
 use std::net::IpAddr;
 
+/// `EtherType` of an ARP frame, the one non-IP flow Sniffnet keys
+const ARP_ETHER_TYPE: u16 = 0x0806;
+
 /// Decoded fields from a single data record
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct FlowRecord {
@@ -13,6 +16,7 @@ pub(super) struct FlowRecord {
     pub(super) src_port: Option<u16>,
     pub(super) dst_port: Option<u16>,
     pub(super) protocol: Option<Protocol>,
+    pub(super) ether_type: Option<u16>,
     pub(super) bytes_delta: Option<u128>,
     pub(super) packets_delta: Option<u128>,
     pub(super) bytes_total: Option<u128>,
@@ -32,8 +36,14 @@ impl FlowRecord {
     pub(super) fn get_key(&self, exporter: IpfixExporter) -> Option<AddressPortPair> {
         let src_ip = self.src_ip?;
         let dst_ip = self.dst_ip?;
-        // TODO: ARP not supported yet
-        let protocol = self.protocol?;
+
+        let protocol = self.protocol.or_else(|| {
+            if self.ether_type == Some(ARP_ETHER_TYPE) {
+                Some(Protocol::Arp)
+            } else {
+                None
+            }
+        })?;
 
         if !protocol.is_portless() && (self.src_port.is_none() || self.dst_port.is_none()) {
             return None;
@@ -65,6 +75,7 @@ impl FlowRecord {
             src_port: self.dst_port,
             dst_port: self.src_port,
             protocol: self.protocol,
+            ether_type: self.ether_type,
             bytes_delta: reverse.bytes_delta,
             packets_delta: reverse.packets_delta,
             bytes_total: reverse.bytes_total,
@@ -188,6 +199,60 @@ mod tests {
     }
 
     #[test]
+    fn test_get_key_arp() {
+        let record = FlowRecord {
+            src_ip: Some("1.1.1.1".parse().unwrap()),
+            dst_ip: Some("2.2.2.2".parse().unwrap()),
+            src_port: None,
+            dst_port: None,
+            protocol: None,
+            ether_type: Some(ARP_ETHER_TYPE),
+            ..Default::default()
+        };
+        let key = record.get_key(exporter());
+        assert_eq!(
+            key,
+            Some(AddressPortPair {
+                src_ip: "1.1.1.1".parse().unwrap(),
+                src_port: None,
+                dst_ip: "2.2.2.2".parse().unwrap(),
+                dst_port: None,
+                protocol: Protocol::Arp,
+                exporter: Some(exporter()),
+            })
+        );
+
+        let record_2 = FlowRecord {
+            src_port: Some(1234),
+            ..record
+        };
+        assert!(record_2.get_key(exporter()).is_none());
+
+        let record_3 = FlowRecord {
+            protocol: Some(Protocol::Tcp),
+            src_port: Some(1234),
+            dst_port: Some(5678),
+            ..record
+        };
+        assert_eq!(
+            record_3.get_key(exporter()).unwrap().protocol,
+            Protocol::Tcp
+        );
+
+        let record_4 = FlowRecord {
+            ether_type: Some(0x0800),
+            ..record
+        };
+        assert!(record_4.get_key(exporter()).is_none(),);
+
+        let record_5 = FlowRecord {
+            ether_type: None,
+            ..record
+        };
+        assert!(record_5.get_key(exporter()).is_none());
+    }
+
+    #[test]
     fn test_get_reverse_record() {
         let record = FlowRecord {
             src_ip: Some("1.1.1.1".parse().unwrap()),
@@ -195,6 +260,7 @@ mod tests {
             src_port: Some(1234),
             dst_port: Some(5678),
             protocol: Some(Protocol::Tcp),
+            ether_type: None,
             bytes_delta: Some(100),
             packets_delta: Some(10),
             bytes_total: Some(1000),
@@ -222,6 +288,7 @@ mod tests {
                 src_port: Some(5678),
                 dst_port: Some(1234),
                 protocol: Some(Protocol::Tcp),
+                ether_type: None,
                 bytes_delta: Some(200),
                 packets_delta: Some(20),
                 bytes_total: Some(2000),

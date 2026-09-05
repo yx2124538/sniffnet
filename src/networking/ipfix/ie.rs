@@ -31,6 +31,7 @@ pub(in crate::networking::ipfix) const FLOW_END_NANOSECONDS: u16 = 157;
 pub(in crate::networking::ipfix) const POST_OCTET_TOTAL_COUNT: u16 = 171;
 pub(in crate::networking::ipfix) const POST_PACKET_TOTAL_COUNT: u16 = 172;
 pub(in crate::networking::ipfix) const DOT1Q_VLAN_ID: u16 = 243;
+pub(in crate::networking::ipfix) const ETHERNET_TYPE: u16 = 256;
 pub(in crate::networking::ipfix) const DOT1Q_CUSTOMER_VLAN_ID: u16 = 245;
 pub(in crate::networking::ipfix) const POST_DOT1Q_VLAN_ID: u16 = 254;
 pub(in crate::networking::ipfix) const POST_DOT1Q_CUSTOMER_VLAN_ID: u16 = 255;
