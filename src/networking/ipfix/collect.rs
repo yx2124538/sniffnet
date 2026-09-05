@@ -309,13 +309,14 @@ mod tests {
 
     /// The field specifiers `sniffnet-agent` puts in its templates,
     /// after the two address fields that differ between the IPv4 and IPv6 variants
-    const AGENT_COMMON_FIELDS: [(u16, u16); 11] = [
+    const AGENT_COMMON_FIELDS: [(u16, u16); 12] = [
         (7, 2),
         (11, 2),
         (4, 1),
         (56, 6),
         (80, 6),
         (243, 2),
+        (256, 2),
         (61, 1),
         (352, 8),
         (2, 8),
@@ -408,6 +409,7 @@ mod tests {
         r.extend_from_slice(&[0xAA; 6]); // source MAC
         r.extend_from_slice(&[0; 6]); // destination MAC
         r.extend_from_slice(&42u16.to_be_bytes()); // dot1qVlanId
+        r.extend_from_slice(&0x0800u16.to_be_bytes()); // ethernetType
         r.push(0x00); // flowDirection
         r.extend_from_slice(&bytes.to_be_bytes());
         r.extend_from_slice(&packets.to_be_bytes());
@@ -576,6 +578,46 @@ mod tests {
         assert!(succeeded);
         assert_eq!(info.tot_data_info.tot_data(DataRepr::Packets), 19);
         assert_eq!(info.tot_data_info.tot_data(DataRepr::Bytes), 2900);
+    }
+
+    #[test]
+    fn test_process_datagram_arp() {
+        let src = Ipv4Addr::new(192, 168, 1, 10);
+        let dst = Ipv4Addr::new(192, 168, 1, 1);
+        let mut record = src.octets().to_vec();
+        record.extend_from_slice(&dst.octets());
+        record.extend_from_slice(&0u16.to_be_bytes()); // source port
+        record.extend_from_slice(&0u16.to_be_bytes()); // destination port
+        record.push(0); // protocol
+        record.extend_from_slice(&[0xAA; 6]); // source MAC
+        record.extend_from_slice(&[0xFF; 6]); // destination MAC
+        record.extend_from_slice(&0u16.to_be_bytes()); // dot1qVlanId
+        record.extend_from_slice(&0x0806u16.to_be_bytes()); // ethernetType
+        record.push(0x01); // flowDirection
+        record.extend_from_slice(&42u64.to_be_bytes());
+        record.extend_from_slice(&1u64.to_be_bytes());
+        record.extend_from_slice(&20_000u64.to_be_bytes()); // flow start
+        record.extend_from_slice(&25_000u64.to_be_bytes()); // flow end
+
+        let bytes = datagram(&[
+            template_set(256, &agent_fields([(8, 4), (12, 4)])),
+            set(256, &record),
+        ]);
+        let (info, _, succeeded) = run_all(&[&bytes]);
+        assert!(succeeded);
+
+        let key = AddressPortPair {
+            src_ip: IpAddr::V4(src),
+            src_port: None,
+            dst_ip: IpAddr::V4(dst),
+            dst_port: None,
+            protocol: Protocol::Arp,
+            exporter: Some(exporter()),
+        };
+        let entry = info.map.get(&key).unwrap();
+        assert_eq!(entry.bytes, 42);
+        assert_eq!(entry.packets, 1);
+        assert_eq!(entry.traffic_direction, TrafficDirection::Outgoing);
     }
 
     #[test]
